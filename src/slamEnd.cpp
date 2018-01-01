@@ -53,13 +53,11 @@ int main( int argc, char** argv )
     typedef g2o::LinearSolverCSparse< SlamBlockSolver::PoseMatrixType > SlamLinearSolver; 
 
     // initialize solver
-    /*SlamLinearSolver* linearSolver = new SlamLinearSolver();
+    SlamLinearSolver* linearSolver = new SlamLinearSolver();
     linearSolver->setBlockOrdering( false );
     SlamBlockSolver* blockSolver = new SlamBlockSolver( linearSolver );
-    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg( blockSolver );*/
+    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg( blockSolver );
     
-    unique_ptr<SlamBlockSolver::LinearSolverType> linearSolver = g2o::make_unique<SlamLinearSolver>();
-    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg( g2o::make_unique<SlamBlockSolver>(move(linearSolver)) );
     g2o::SparseOptimizer optimizer;
     optimizer.setAlgorithm(solver);
     optimizer.setVerbose(false);
@@ -84,16 +82,18 @@ int main( int argc, char** argv )
             cout<<"too less inliers, discard current frame"<<endl;
             continue;
         }
+        cout<<result.inliers<<endl;
         double norm = normofTransform(result.rvec, result.tvec);
         if(norm > max_norm)
         {
             cout<<"norm ="<<norm<<" is too large, discard the frame"<<endl;
             continue;
         }
+        cout<<"nrom ="<<norm<<endl;
 
         Eigen::Isometry3d matrixT = cvMat2Eigen(result.rvec, result.tvec);
-        cout<<"matrix T is "<<matrixT.matrix()<<endl;
 
+        cout<<"matrix T is "<<matrixT.matrix()<<endl;
         // add vertex
         vertex = new g2o::VertexSE3();
         vertex->setId(currId);
@@ -110,9 +110,7 @@ int main( int argc, char** argv )
             informationMatrix(i, i) = 100;
         }
         edge->setInformation( informationMatrix );
-        cout<<"1"<<endl;
-        edge->setMeasurement( matrixT );
-        cout<<"2"<<endl;
+        edge->setMeasurement(  matrixT );
         optimizer.addEdge(edge);
         lastFrame = currFrame;
         lastId = currId;
@@ -143,13 +141,14 @@ FRAME readFrame( int index, ParameterReader& pd )
     ss<<rgbDir<<index<<rgbExt;
     string filename;
     ss>>filename;
+    cout<<"before reading image"<<endl;
     f.rgb = cv::imread( filename );
 
     ss.clear();
     filename.clear();
     ss<<depthDir<<index<<depthExt;
     ss>>filename;
-
+    cout<<"before reading depth"<<endl;
     f.depth = cv::imread( filename, -1 );
     return f;
 }
