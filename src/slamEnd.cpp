@@ -19,9 +19,8 @@ using namespace std;
 #include <g2o/core/optimization_algorithm_levenberg.h>
 
 // first part api
-// 给定index，读取一帧数据
 FRAME readFrame( int index, ParameterReader& pd );
-// 度量运动的大小
+
 double normofTransform( cv::Mat rvec, cv::Mat tvec );
 
 int main( int argc, char** argv )
@@ -33,7 +32,7 @@ int main( int argc, char** argv )
     // initialize
     cout<<"Start initializing ..."<<endl;
     int currId = startId;
-    FRAME lastFrame = readFrame( currIdx, parameters ); 
+    FRAME lastFrame = readFrame( currId, parameters ); 
     // last and current comparison
 
     string detector = parameters.getData( "detector" );
@@ -44,28 +43,31 @@ int main( int argc, char** argv )
     
     pcl::visualization::CloudViewer viewer("viewer");
 
-    // 是否显示点云
+    // pointcloud
     bool needVisualize = parameters.getData("visualize_pointcloud")==string("yes");
 
     int min_inliers = atoi( parameters.getData("min_inliers").c_str() );
     double max_norm = atof( parameters.getData("max_norm").c_str() );
 
-    // start g2o optimization
-    // initlization of solvers
-    g2o::LinearSolverCSparse< g2o::BlockSolver_6_3::PoseMatrixType> * linearSolver = 
-        new g2o::LinearSolverCSparse< g2o::BlockSolver_6_3::PoseMatrixType>();
-    linearSolver->setBlockOrdering( false);
-    g2o::BlockSolver_6_3 * blockSolver = new g2o::BlockSolver_6_3 ( linearSolver);
-    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg( blockSolver );
+    typedef g2o::BlockSolver_6_3 SlamBlockSolver; 
+    typedef g2o::LinearSolverCSparse< SlamBlockSolver::PoseMatrixType > SlamLinearSolver; 
 
+    // initialize solver
+    /*SlamLinearSolver* linearSolver = new SlamLinearSolver();
+    linearSolver->setBlockOrdering( false );
+    SlamBlockSolver* blockSolver = new SlamBlockSolver( linearSolver );
+    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg( blockSolver );*/
+    
+    unique_ptr<SlamBlockSolver::LinearSolverType> linearSolver = g2o::make_unique<SlamLinearSolver>();
+    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg( g2o::make_unique<SlamBlockSolver>(move(linearSolver)) );
     g2o::SparseOptimizer optimizer;
     optimizer.setAlgorithm(solver);
-    optimizer.setVerbose(true);
+    optimizer.setVerbose(false);
 
     g2o::VertexSE3* vertex = new g2o::VertexSE3();
     vertex->setId( currId );
     vertex->setEstimate( Eigen::Isometry3d::Identity());// first estimate is identity matrix
-    v->setFixed( true); // initial position is fixed
+    vertex->setFixed( true); // initial position is fixed
     optimizer.addVertex (vertex);
 
     int lastId = currId;
@@ -73,8 +75,57 @@ int main( int argc, char** argv )
     for (++currId ; currId <= endId; ++currId)
     {
         cout<<"file #"<<currId<<endl;
+        FRAME currFrame = readFrame( currId, parameters );
+        computeKeyPointsAndDesp( currFrame, detector, descriptor );
+        RESULT_OF_PNP result = estimateMotion( lastFrame, currFrame, intrinPara);// motion estimate from two frames
         
+        if (result.inliers < min_inliers)
+        {
+            cout<<"too less inliers, discard current frame"<<endl;
+            continue;
+        }
+        double norm = normofTransform(result.rvec, result.tvec);
+        if(norm > max_norm)
+        {
+            cout<<"norm ="<<norm<<" is too large, discard the frame"<<endl;
+            continue;
+        }
+
+        Eigen::Isometry3d matrixT = cvMat2Eigen(result.rvec, result.tvec);
+        cout<<"matrix T is "<<matrixT.matrix()<<endl;
+
+        // add vertex
+        vertex = new g2o::VertexSE3();
+        vertex->setId(currId);
+        vertex->setEstimate(Eigen::Isometry3d::Identity());
+        optimizer.addVertex(vertex);
+        // create edge
+        g2o::EdgeSE3* edge = new g2o::EdgeSE3();
+        edge->vertices() [0] = optimizer.vertex( lastId ); 
+        edge->vertices() [1] = vertex;
+        // create information matrix
+        Eigen::Matrix<double, 6, 6> informationMatrix = Eigen::Matrix< double, 6, 6 >::Identity();
+        for(int i = 0; i < 6; ++i)
+        {
+            informationMatrix(i, i) = 100;
+        }
+        edge->setInformation( informationMatrix );
+        cout<<"1"<<endl;
+        edge->setMeasurement( matrixT );
+        cout<<"2"<<endl;
+        optimizer.addEdge(edge);
+        lastFrame = currFrame;
+        lastId = currId;
     }
+
+    cout<<"start graph optimization, total vertices:"<<optimizer.vertices().size()<<endl;
+    optimizer.save("./data/result_before.g2o");
+    optimizer.initializeOptimization();
+    optimizer.optimize( 50 );
+    optimizer.save("./data/result_after.g2o");
+
+    optimizer.clear();
+
     return 0;
 }
 
