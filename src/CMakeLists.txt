@@ -15,13 +15,21 @@ FIND_PACKAGE( CSparse REQUIRED)
 INCLUDE_DIRECTORIES( ${G2O_INCLUDE_DIR} ${CSPARSE_INCLUDE_DIR} )
 
 ADD_LIBRARY( slambase slamBase.cpp )
-TARGET_LINK_LIBRARIES( slambase
+TARGET_LINK_LIBRARIES( slambase 
     ${OpenCV_LIBS} 
     ${PCL_LIBRARIES} )
 
-ADD_EXECUTABLE( slamEnd slamEnd.cpp)
-TARGET_LINK_LIBRARIES( slamEnd
+ADD_LIBRARY( loopclosure loopClosure.cpp )
+TARGET_LINK_LIBRARIES( loopclosure
     slambase
+    ${OpenCV_LIBS} 
+    ${PCL_LIBRARIES} )
+
+
+ADD_EXECUTABLE( slam slam.cpp)
+TARGET_LINK_LIBRARIES( slam
+    slambase
+    loopclosure
     ${OpenCV_LIBS} 
     ${PCL_LIBRARIES}
     g2o_core g2o_types_slam3d g2o_solver_csparse g2o_stuff g2o_csparse_extension ${CSPARSE_LIBRARY} )
