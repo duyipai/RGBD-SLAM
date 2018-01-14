@@ -1,3 +1,10 @@
+/*************************************************************************
+	> File Name: rgbd-slam-tutorial-gx/part III/code/include/slamBase.h
+	> Author: xiang gao
+	> Mail: gaoxiang12@mails.tsinghua.edu.cn
+	> Created Time: 2015年07月18日 星期六 15时14分22秒
+    > 说明：rgbd-slam教程所用到的基本函数（C风格）
+ ************************************************************************/
 # pragma once
 
 // 各种头文件 
@@ -37,10 +44,10 @@ struct CAMERA_INTRINSIC_PARAMETERS
 // 帧结构
 struct FRAME
 {
-    int frameID;
     cv::Mat rgb, depth; //该帧对应的彩色图与深度图
     cv::Mat desp;       //特征描述子
     vector<cv::KeyPoint> kp; //关键点
+    int frameID;
 };
 
 // PnP 结果
@@ -61,7 +68,9 @@ cv::Point3f point2dTo3d( cv::Point3f& point, CAMERA_INTRINSIC_PARAMETERS& camera
 // computeKeyPointsAndDesp 同时提取关键点与特征描述子
 void computeKeyPointsAndDesp( FRAME& frame, string detector, string descriptor );
 
+vector<cv::DMatch> matches_desp(FRAME& frame1, FRAME& frame2);
 // estimateMotion 计算两个帧之间的运动
+vector<cv::DMatch> matches_optimize(vector<cv::DMatch> matches);
 // 输入：帧1和帧2, 相机内参
 RESULT_OF_PNP estimateMotion( FRAME& frame1, FRAME& frame2, CAMERA_INTRINSIC_PARAMETERS& camera );
 
@@ -130,10 +139,6 @@ inline static CAMERA_INTRINSIC_PARAMETERS getDefaultCamera()
     return camera;
 }
 
-
-// first part api
-FRAME readFrame( int index, ParameterReader& pd );
-
-
-// first part api
 double normofTransform( cv::Mat rvec, cv::Mat tvec );
+
+FRAME readFrame( int index, ParameterReader& pd );
