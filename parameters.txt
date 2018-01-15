@@ -14,14 +14,13 @@ camera.scale=1000.0;
 
 
 # data index
-start_index=20
-end_index=70
+start_index=1
+end_index=780
 rgb_dir=./data/rgb_png/
 rgb_extension=.png
 depth_dir=./data/depth_png/
 depth_extension=.png
 voxel_grid=0.01
-visualize_pointcloud=yes
 min_good_match=10
 min_inliers=5
 # max allowed motion between frames

@@ -37,12 +37,6 @@ int main( int argc, char** argv )
     computeKeyPointsAndDesp( lastFrame, detector, descriptor );
 
     keyFrames.push_back(lastFrame);
-    //PointCloud::Ptr cloud = image2PointCloud( lastFrame.rgb, lastFrame.depth, intrinPara );
-    
-    //pcl::visualization::CloudViewer viewer("viewer");
-
-    // pointcloud
-    //bool needVisualize = parameters.getData("visualize_pointcloud")==string("yes");
 
     typedef g2o::BlockSolver_6_3 SlamBlockSolver; 
     typedef g2o::LinearSolverCSparse< SlamBlockSolver::PoseMatrixType > SlamLinearSolver; 
@@ -99,11 +93,43 @@ int main( int argc, char** argv )
     }
 
     cout<<"start graph optimization, total vertices:"<<optimizer.vertices().size()<<endl;
-    optimizer.save("./data/result_before.g2o");
+    optimizer.save("./data/result_before_optimization.g2o");
     optimizer.initializeOptimization();
     optimizer.optimize( 50 );
-    optimizer.save("./data/result_after.g2o");
+    optimizer.save("./data/final_result.g2o");
 
+    cout<<"saving the point cloud map..."<<endl;
+    PointCloud::Ptr output ( new PointCloud() ); 
+    PointCloud::Ptr tmp ( new PointCloud() );
+
+    pcl::VoxelGrid<PointT> voxel; // grid filter
+    pcl::PassThrough<PointT> pass; // a filter focused on z axis
+    pass.setFilterFieldName("z");
+    pass.setFilterLimits( 0.0, 4.0 ); //filter out values above 4 meters
+
+    double gridsize = atof( parameters.getData( "voxel_grid" ).c_str() ); 
+    voxel.setLeafSize( gridsize, gridsize, gridsize );
+
+    for (size_t i=0; i<keyFrames.size(); i++)
+    {
+        g2o::VertexSE3* vertex = dynamic_cast<g2o::VertexSE3*>(optimizer.vertex( keyFrames[i].frameID ));
+        Eigen::Isometry3d pose = vertex->estimate(); 
+        PointCloud::Ptr newCloud = image2PointCloud( keyFrames[i].rgb, keyFrames[i].depth, intrinPara ); 
+        voxel.setInputCloud( newCloud );
+        voxel.filter( *tmp );
+        pass.setInputCloud( tmp );
+        pass.filter( *newCloud );
+   
+        pcl::transformPointCloud( *newCloud, *tmp, pose.matrix() );
+        *output += *tmp;
+        tmp->clear();
+        newCloud->clear();
+    }
+
+    voxel.setInputCloud( output );
+    voxel.filter( *tmp );
+    pcl::io::savePCDFile( "./data/result_points.pcd", *tmp );
+    
     optimizer.clear();
 
     return 0;
