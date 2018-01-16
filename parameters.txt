@@ -26,8 +26,8 @@ min_inliers=5
 # max allowed motion between frames
 max_norm=0.2
 
-keyframe_threshold=0.01
+keyframe_threshold=0.1
 max_norm_lp=2.0
 check_loop_closure=yes
-nearby_loops=5
-random_loops=5
+nearby_loops=20
+random_loops=20
