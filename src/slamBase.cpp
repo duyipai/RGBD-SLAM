@@ -79,7 +79,7 @@ vector<cv::DMatch> matches_optimize(vector<cv::DMatch> matches)
     
     for(i=0;i<matches.size();i++ )
     {
-        if (matches[i].distance < 4*dmin )
+        if (matches[i].distance < 10*dmin )
         opt_matches.push_back(matches[i]);
     }
     return opt_matches;
