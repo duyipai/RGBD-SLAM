@@ -1,141 +1,146 @@
-
 #include "slamBase.h"
 PointCloud::Ptr image2PointCloud( cv::Mat& rgb, cv::Mat& depth, CAMERA_INTRINSIC_PARAMETERS& camera )
 {
 PointCloud::Ptr cloud ( new PointCloud );
-pcl::PointXYZRGBA cloud_point;
-double d;
-for(int r = 0; r < depth.rows; r++)   
-    for(int c= 0;c< depth.cols;c++)
-     {
-        d= double(depth.ptr<ushort>(r)[c]);
-        if (d==0)
-        continue;
-        CAMERA_INTRINSIC_PARAMETERS *p;
-        p = &camera;     
-        cloud_point.z= d/(p->scale);
-        cloud_point.x= (c-p->cx)*cloud_point.z/p->fx;
-        cloud_point.y= (r-p->cy)*cloud_point.z/p->fy; 
-        cv::Vec3b* ptr = rgb.ptr<cv::Vec3b>(r);
-        cloud_point.b=ptr[c][0];
-        cloud_point.g=ptr[c][1];
-        cloud_point.r=ptr[c][2];      
-        cloud->points.push_back(cloud_point);        
-    }
+
+    for (int m = 0; m < depth.rows; m+=2)
+        for (int n=0; n < depth.cols; n+=2)
+        {
+            // 获取深度图中(m,n)处的值
+            ushort d = depth.ptr<ushort>(m)[n];
+            // d 可能没有值，若如此，跳过此点
+            if (d == 0)
+                continue;
+            // d 存在值，则向点云增加一个点
+            PointT p;
+
+            // 计算这个点的空间坐标
+            p.z = double(d) / camera.scale;
+            p.x = (n - camera.cx) * p.z / camera.fx;
+            p.y = (m - camera.cy) * p.z / camera.fy;
+            
+            // 从rgb图像中获取它的颜色
+            // rgb是三通道的BGR格式图，所以按下面的顺序获取颜色
+            p.b = rgb.ptr<uchar>(m)[n*3];
+            p.g = rgb.ptr<uchar>(m)[n*3+1];
+            p.r = rgb.ptr<uchar>(m)[n*3+2];
+
+            // 把p加入到点云中
+            cloud->points.push_back( p );
+        }
+    // 设置并保存点云
     cloud->height = 1;
     cloud->width = cloud->points.size();
     cloud->is_dense = false;
+
     return cloud;
 }
 
 cv::Point3f point2dTo3d( cv::Point3f& point, CAMERA_INTRINSIC_PARAMETERS& camera )
 {
-    cv::Point3f *p1,*p2,cloud_point;
-    p1=&cloud_point;
-    p2=&point;
-    CAMERA_INTRINSIC_PARAMETERS *p;
-    p = &camera;     
-    p1->z= p2->z/(p->scale);
-    p1->x= (p2->x-p->cx)*p1->z/p->fx;
-    p1->y= (p2->y-p->cy)*p1->z/p->fy; 
-    return cloud_point;
+    cv::Point3f p; // 3D 点
+    p.z = double( point.z ) / camera.scale;
+    p.x = ( point.x - camera.cx) * p.z / camera.fx;
+    p.y = ( point.y - camera.cy) * p.z / camera.fy;
+    return p;
 }
-void computeKeyPointsAndDesp( FRAME& frame, string detector_name, string descriptor_name )
+void computeKeyPointsAndDesp( FRAME& frame, string detector, string descriptor )
 {
-    cv::Ptr<cv::FeatureDetector>  detector;
-    cv::Ptr<cv::DescriptorExtractor> descriptor;
-    detector = cv::FeatureDetector::create( detector_name.c_str() );
-    descriptor = cv::DescriptorExtractor::create( descriptor_name.c_str() );
-    if(!detector||!descriptor)
+    cv::Ptr<cv::FeatureDetector> _detector;
+    cv::Ptr<cv::DescriptorExtractor> _descriptor;
+
+    _detector = cv::FeatureDetector::create( detector.c_str() );
+    _descriptor = cv::DescriptorExtractor::create( descriptor.c_str() );
+
+    if (!_detector || !_descriptor)
     {
-        cerr<<"unknown detector or discriptor type"<<endl;
+        cerr<<"Unknown detector or discriptor type !"<<detector<<","<<descriptor<<endl;
         return;
     }
-    detector->detect( frame.rgb, frame.kp );
-    descriptor->compute( frame.rgb, frame.kp, frame.desp );
-    return;
-}
- vector<cv::DMatch> matches_desp(FRAME& frame1, FRAME& frame2)
-{ 
-    vector<cv::DMatch> matches;
-    cv::BFMatcher matcher;
-    matcher.match( frame1.desp, frame2.desp, matches );
-    return matches;
-}
 
-vector<cv::DMatch> matches_optimize(vector<cv::DMatch> matches)
-{
-    vector<cv::DMatch> opt_matches;
-    long int i;
-    double dmin;
-    dmin=matches[0].distance;  
-    for(i=0;i<matches.size();i++)
-    {
-        if (matches[i].distance<dmin)
-        dmin=matches[i].distance;
-    }
-    if(dmin<10)
-        dmin=10;
-    
-    for(i=0;i<matches.size();i++ )
-    {
-        if (matches[i].distance < 10*dmin )
-        opt_matches.push_back(matches[i]);
-    }
-    return opt_matches;
+    _detector->detect( frame.rgb, frame.kp );
+    _descriptor->compute( frame.rgb, frame.kp, frame.desp );
+
+    return;
 }
 
 RESULT_OF_PNP estimateMotion( FRAME& frame1, FRAME& frame2, CAMERA_INTRINSIC_PARAMETERS& camera )
 {
-    vector< cv::DMatch > matches,goodMatches;
-    vector<cv::Point3f> point_3D;
-    vector< cv::Point2f > point_2D;
-    matches =matches_desp(frame1,frame2);  
-    goodMatches=matches_optimize(matches);
-    
-    RESULT_OF_PNP motion;
-    if(goodMatches.size()<=5)
+    static ParameterReader pd;
+    vector< cv::DMatch > matches;
+    cv::BFMatcher matcher;
+    matcher.match( frame1.desp, frame2.desp, matches );
+   
+    RESULT_OF_PNP result;
+    vector< cv::DMatch > goodMatches;
+    double minDis = 9999;
+    double good_match_threshold = atof( pd.getData( "good_match_threshold" ).c_str() );
+    for ( size_t i=0; i<matches.size(); i++ )
     {
-       motion.inliers=-1;
-       return motion;
+        if ( matches[i].distance < minDis )
+            minDis = matches[i].distance;
     }
+
+    if ( minDis < 10 ) 
+        minDis = 10;
     
-    long int i=0;
-    double d;
-    
-    for(i=0; i<goodMatches.size(); i++)
+    for ( size_t i=0; i<matches.size(); i++ )
     {
-       
-        cv::KeyPoint point1 = frame1.kp[goodMatches[i].queryIdx];
-        cv::KeyPoint point2 = frame2.kp[goodMatches[i].trainIdx];
-        ushort d=(frame1.depth.ptr<ushort>(int(point1.pt.y))[int(point1.pt.x)]);
-        if (d==0)
-        continue;
-        cv::Point3f p1,P;
-        cv::Point2f p2;   
-        p2=point2.pt;
-        point_2D.push_back(p2);
-        p1.x=point1.pt.x;
-        p1.y=point1.pt.y;
-        p1.z=d;
-        P=point2dTo3d(p1,camera);
-        point_3D.push_back(P);
+        if (matches[i].distance < good_match_threshold*minDis)
+            goodMatches.push_back( matches[i] );
     }
-    if (point_3D.size() ==0 || point_2D.size()==0)
+
+
+    if (goodMatches.size() <= 5) 
     {
-        motion.inliers = -1;
-        return motion;
+        result.inliers = -1;
+        return result;
     }
-    CAMERA_INTRINSIC_PARAMETERS *p;
-    p = &camera;
-    double camera_matrix[3][3]={{p->fx, 0, p->cx},{0, p->fy, p->cy},{0, 0, 1}};
-    cv::Mat cameraMatrix( 3, 3, CV_64F, camera_matrix);
+    // 第一个帧的三维点
+    vector<cv::Point3f> pts_obj;
+    // 第二个帧的图像点
+    vector< cv::Point2f > pts_img;
+
+    // 相机内参
+    for (size_t i=0; i<goodMatches.size(); i++)
+    {
+        // query 是第一个, train 是第二个
+        cv::Point2f p = frame1.kp[goodMatches[i].queryIdx].pt;
+        // 获取d是要小心！x是向右的，y是向下的，所以y才是行，x是列！
+        ushort d = frame1.depth.ptr<ushort>( int(p.y) )[ int(p.x) ];
+        if (d == 0)
+            continue;
+        pts_img.push_back( cv::Point2f( frame2.kp[goodMatches[i].trainIdx].pt ) );
+
+        // 将(u,v,d)转成(x,y,z)
+        cv::Point3f pt ( p.x, p.y, d );
+        cv::Point3f pd = point2dTo3d( pt, camera );
+        pts_obj.push_back( pd );
+    }
+
+    if (pts_obj.size() ==0 || pts_img.size()==0)
+    {
+        result.inliers = -1;
+        return result;
+    }
+
+    double camera_matrix_data[3][3] = {
+        {camera.fx, 0, camera.cx},
+        {0, camera.fy, camera.cy},
+        {0, 0, 1}
+    };
+
+    // 构建相机矩阵
+    cv::Mat cameraMatrix( 3, 3, CV_64F, camera_matrix_data );
     cv::Mat rvec, tvec, inliers;
-    cv::solvePnPRansac(point_3D, point_2D, cameraMatrix, cv::Mat(), rvec, tvec, false, 100, 1.0, 100, inliers );
-    motion.rvec = rvec;
-    motion.tvec = tvec;
-    motion.inliers = inliers.rows;
-    return motion;
+    // 求解pnp
+    cv::solvePnPRansac( pts_obj, pts_img, cameraMatrix, cv::Mat(), rvec, tvec, false, 100, 1.0, 100, inliers );
+
+    result.rvec = rvec;
+    result.tvec = tvec;
+    result.inliers = inliers.rows;
+
+    return result;
 }
 
 // cvMat2Eigen
@@ -147,7 +152,10 @@ Eigen::Isometry3d cvMat2Eigen( cv::Mat& rvec, cv::Mat& tvec )
     for ( int i=0; i<3; i++ )
         for ( int j=0; j<3; j++ ) 
             r(i,j) = R.at<double>(i,j);
+  
+    // 将平移向量和旋转矩阵转换成变换矩阵
     Eigen::Isometry3d T = Eigen::Isometry3d::Identity();
+
     Eigen::AngleAxisd angle(r);
     T = angle;
     T(0,3) = tvec.at<double>(0,0); 
@@ -155,7 +163,6 @@ Eigen::Isometry3d cvMat2Eigen( cv::Mat& rvec, cv::Mat& tvec )
     T(2,3) = tvec.at<double>(2,0);
     return T;
 }
-
 
 double normofTransform( cv::Mat rvec, cv::Mat tvec )
 {
