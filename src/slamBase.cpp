@@ -46,6 +46,11 @@ void computeKeyPointsAndDesp( FRAME& frame, string detector_name, string descrip
     cv::Ptr<cv::DescriptorExtractor> descriptor;
     detector = cv::FeatureDetector::create( detector_name.c_str() );
     descriptor = cv::DescriptorExtractor::create( descriptor_name.c_str() );
+    if(!detector||!descriptor)
+    {
+        cerr<<"unknown detector or discriptor type"<<endl;
+        return;
+    }
     detector->detect( frame.rgb, frame.kp );
     descriptor->compute( frame.rgb, frame.kp, frame.desp );
     return;
@@ -93,11 +98,12 @@ RESULT_OF_PNP estimateMotion( FRAME& frame1, FRAME& frame2, CAMERA_INTRINSIC_PAR
        
         cv::KeyPoint point1 = frame1.kp[goodMatches[i].queryIdx];
         cv::KeyPoint point2 = frame2.kp[goodMatches[i].trainIdx];
-        d=double(frame1.depth.ptr<ushort>(int(point1.pt.y))[int(point1.pt.x)]);
+        ushort d=(frame1.depth.ptr<ushort>(int(point1.pt.y))[int(point1.pt.x)]);
+        if (d==0)
+        continue;
         cv::Point3f p1,P;
         cv::Point2f p2;   
-        p2.x=point2.pt.x;
-        p2.y=point2.pt.y;
+        p2=point2.pt;
         point_2D.push_back(p2);
         p1.x=point1.pt.x;
         p1.y=point1.pt.y;
