@@ -74,6 +74,9 @@ vector<cv::DMatch> matches_optimize(vector<cv::DMatch> matches)
         if (matches[i].distance<dmin)
         dmin=matches[i].distance;
     }
+    if(dmin<10)
+        dmin=10;
+    
     for(i=0;i<matches.size();i++ )
     {
         if (matches[i].distance < 4*dmin )
@@ -89,7 +92,14 @@ RESULT_OF_PNP estimateMotion( FRAME& frame1, FRAME& frame2, CAMERA_INTRINSIC_PAR
     vector< cv::Point2f > point_2D;
     matches =matches_desp(frame1,frame2);  
     goodMatches=matches_optimize(matches);
+    
     RESULT_OF_PNP motion;
+    if(goodMatches.size()<=5)
+    {
+       motion.inliers=-1;
+       return motion;
+    }
+    
     long int i=0;
     double d;
     
