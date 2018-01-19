@@ -87,7 +87,7 @@ RESULT_OF_PNP estimateMotion( FRAME& frame1, FRAME& frame2, CAMERA_INTRINSIC_PAR
     matches =matches_desp(frame1,frame2);  
     goodMatches=matches_optimize(matches);
     RESULT_OF_PNP motion;
-  
+    
     long int i=0;
     double d;
     
@@ -110,7 +110,16 @@ RESULT_OF_PNP estimateMotion( FRAME& frame1, FRAME& frame2, CAMERA_INTRINSIC_PAR
         P=point2dTo3d(p1,camera);
         point_3D.push_back(P);
     }
-    
+    if(goodMatches.size()<=6)
+    {
+       motion.inliers=-1;
+       return motion;
+    }
+     if (point_3D.size() ==0 || point_2D.size()==0)
+    {
+        motion.inliers = -1;
+        return motion;
+    }
     CAMERA_INTRINSIC_PARAMETERS *p;
     p = &camera;
     double camera_matrix[3][3]={{p->fx, 0, p->cx},{0, p->fy, p->cy},{0, 0, 1}};
