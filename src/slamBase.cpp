@@ -70,7 +70,8 @@ vector<cv::DMatch> matches_optimize(vector<cv::DMatch> matches)
         if (matches[i].distance<dmin)
         dmin=matches[i].distance;
     }
-    
+    if(dmin<10)
+        dmin=10;
     for(i=0;i<matches.size();i++ )
     {
         if (matches[i].distance < 10*dmin )
