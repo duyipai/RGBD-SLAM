@@ -47,11 +47,6 @@ void computeKeyPointsAndDesp( FRAME& frame, string detector_name, string descrip
 
     detector = cv::FeatureDetector::create( detector_name.c_str() );
     descriptor = cv::DescriptorExtractor::create( descriptor_name.c_str() );
-    if(!detector||!descriptor)
-    {
-        cerr<<"unknown detector or discriptor type"<<endl;
-        return;
-    }
     detector->detect( frame.rgb, frame.kp );
     descriptor->compute( frame.rgb, frame.kp, frame.desp );
     return;
@@ -75,8 +70,6 @@ vector<cv::DMatch> matches_optimize(vector<cv::DMatch> matches)
         if (matches[i].distance<dmin)
         dmin=matches[i].distance;
     }
-    if(dmin<10)
-        dmin=10;
     
     for(i=0;i<matches.size();i++ )
     {
@@ -93,14 +86,8 @@ RESULT_OF_PNP estimateMotion( FRAME& frame1, FRAME& frame2, CAMERA_INTRINSIC_PAR
     vector< cv::Point2f > point_2D;
     matches =matches_desp(frame1,frame2);  
     goodMatches=matches_optimize(matches);
-    
     RESULT_OF_PNP motion;
-    if(goodMatches.size()<=5)
-    {
-       motion.inliers=-1;
-       return motion;
-    }
-    
+  
     long int i=0;
     double d;
     
@@ -114,7 +101,8 @@ RESULT_OF_PNP estimateMotion( FRAME& frame1, FRAME& frame2, CAMERA_INTRINSIC_PAR
         continue;
         cv::Point3f p1,P;
         cv::Point2f p2;   
-        p2=point2.pt;
+        p2.x=point2.pt.x;
+        p2.y=point2.pt.y;
         point_2D.push_back(p2);
         p1.x=point1.pt.x;
         p1.y=point1.pt.y;
@@ -122,11 +110,7 @@ RESULT_OF_PNP estimateMotion( FRAME& frame1, FRAME& frame2, CAMERA_INTRINSIC_PAR
         P=point2dTo3d(p1,camera);
         point_3D.push_back(P);
     }
-    if (point_3D.size() ==0 || point_2D.size()==0)
-    {
-        motion.inliers = -1;
-        return motion;
-    }
+    
     CAMERA_INTRINSIC_PARAMETERS *p;
     p = &camera;
     double camera_matrix[3][3]={{p->fx, 0, p->cx},{0, p->fy, p->cy},{0, 0, 1}};
@@ -156,7 +140,6 @@ Eigen::Isometry3d cvMat2Eigen( cv::Mat& rvec, cv::Mat& tvec )
     T(2,3) = tvec.at<double>(2,0);
     return T;
 }
-
 
 double normofTransform( cv::Mat rvec, cv::Mat tvec )
 {
