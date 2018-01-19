@@ -2,11 +2,6 @@
 #include <fstream>
 #include <sstream>
 using namespace std;
-#define RESET "\033[0m"
-#define RED "\033[31m" /* Red */
-#define GREEN "\033[32m" /* Green */
-#define BLACK "\033[30m" /* Black */
-
 
 #include "slamBase.h"
 #include "loopClosure.h"
@@ -68,14 +63,14 @@ int main( int argc, char** argv )
 
     for (++currId ; currId <= endId; ++currId)
     {
-        cout<<RESET"file #"<<currId<<endl;
+        cout<<"file #"<<currId<<endl;
         FRAME currFrame = readFrame( currId, parameters );
         computeKeyPointsAndDesp( currFrame, detector, descriptor );
         FRAME_CHECK_RESULT result = checkKeyFrame(keyFrames.back(), currFrame, optimizer);
 
         if(result == KEY_FRAME)
         {
-            cout<<GREEN"successfully added one more frame"<<endl;
+            cout<<"successfully added one more frame"<<endl;
             if(checkLoop)
             {
                 checkNearLoop(keyFrames, currFrame, optimizer);
@@ -85,15 +80,15 @@ int main( int argc, char** argv )
         }
         else if(result == TOO_CLOSE)
         {
-            cout<<RESET"two frames are too close, not key frame"<<endl;
+            cout<<"two frames are too close, not key frame"<<endl;
         }
         else if(result == TOO_FAR)
         {
-            cout<<RED"too far away frames, error discarded"<<endl;
+            cout<<"too far away frames, error discarded"<<endl;
         }
         else
         {
-            cout<<RED"too less inliers, error discarded"<<endl;
+            cout<<"too less inliers, error discarded"<<endl;
         }
     }
 
@@ -107,23 +102,23 @@ int main( int argc, char** argv )
     PointCloud::Ptr output ( new PointCloud() ); 
     PointCloud::Ptr tmp ( new PointCloud() );
 
-    pcl::VoxelGrid<PointT> voxel; // grid filter
-    pcl::PassThrough<PointT> pass; // a filter focused on z axis
-    pass.setFilterFieldName("z");
-    pass.setFilterLimits( 0.0, 4.0 ); //filter out values above 4 meters
+    pcl::VoxelGrid<PointT> gridFilter; // grid filter
+    pcl::PassThrough<PointT> rangeFilter; // a filter focused on z axis
+    rangeFilter.setFilterFieldName("z");
+    rangeFilter.setFilterLimits( 0.0, 4.0 ); //filter out values above 4 meters
 
     double gridsize = atof( parameters.getData( "voxel_grid" ).c_str() ); 
-    voxel.setLeafSize( gridsize, gridsize, gridsize );
+    gridFilter.setLeafSize( gridsize, gridsize, gridsize );
 
-    for (size_t i=0; i<keyFrames.size(); i++)
+    for (int i=0; i<keyFrames.size(); i++)
     {
         g2o::VertexSE3* vertex = dynamic_cast<g2o::VertexSE3*>(optimizer.vertex( keyFrames[i].frameID ));
         Eigen::Isometry3d pose = vertex->estimate(); 
         PointCloud::Ptr newCloud = image2PointCloud( keyFrames[i].rgb, keyFrames[i].depth, intrinPara ); 
-        voxel.setInputCloud( newCloud );
-        voxel.filter( *tmp );
-        pass.setInputCloud( tmp );
-        pass.filter( *newCloud );
+        gridFilter.setInputCloud( newCloud );
+        gridFilter.filter( *tmp );
+        rangeFilter.setInputCloud( tmp );
+        rangeFilter.filter( *newCloud );
    
         pcl::transformPointCloud( *newCloud, *tmp, pose.matrix() );
         *output += *tmp;
@@ -131,8 +126,8 @@ int main( int argc, char** argv )
         newCloud->clear();
     }
 
-    voxel.setInputCloud( output );
-    voxel.filter( *tmp );
+    gridFilter.setInputCloud( output );
+    gridFilter.filter( *tmp );
     pcl::io::savePCDFile( "./data/result_points.pcd", *tmp );
     
     optimizer.clear();
