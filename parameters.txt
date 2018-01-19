@@ -2,10 +2,7 @@
 detector=ORB
 descriptor=ORB
 
-# good match 
-good_match_threshold=10
-
-# camera
+# camera intrinsic parameter
 camera.cx=325.5;
 camera.cy=253.5;
 camera.fx=518.0;
@@ -21,13 +18,13 @@ rgb_extension=.png
 depth_dir=./data/depth_png/
 depth_extension=.png
 voxel_grid=0.01
-min_good_match=10
-min_inliers=5
+min_good_match=15
+min_inliers=7
 # max allowed motion between frames
 max_norm=0.2
 
-keyframe_threshold=0.1
-max_norm_lp=2.0
+keyframe_threshold=0.05
+max_norm_lp=1.0
 check_loop_closure=yes
 nearby_loops=20
 random_loops=20

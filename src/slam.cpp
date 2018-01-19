@@ -2,6 +2,11 @@
 #include <fstream>
 #include <sstream>
 using namespace std;
+#define RESET "\033[0m"
+#define RED "\033[31m" /* Red */
+#define GREEN "\033[32m" /* Green */
+#define BLACK "\033[30m" /* Black */
+
 
 #include "slamBase.h"
 #include "loopClosure.h"
@@ -63,14 +68,14 @@ int main( int argc, char** argv )
 
     for (++currId ; currId <= endId; ++currId)
     {
-        cout<<"file #"<<currId<<endl;
+        cout<<RESET"file #"<<currId<<endl;
         FRAME currFrame = readFrame( currId, parameters );
         computeKeyPointsAndDesp( currFrame, detector, descriptor );
         FRAME_CHECK_RESULT result = checkKeyFrame(keyFrames.back(), currFrame, optimizer);
 
         if(result == KEY_FRAME)
         {
-            cout<<"successfully added one more frame"<<endl;
+            cout<<GREEN"successfully added one more frame"<<endl;
             if(checkLoop)
             {
                 checkNearLoop(keyFrames, currFrame, optimizer);
@@ -80,19 +85,19 @@ int main( int argc, char** argv )
         }
         else if(result == TOO_CLOSE)
         {
-            cout<<"two frames are too close, not key frame"<<endl;
+            cout<<RESET"two frames are too close, not key frame"<<endl;
         }
         else if(result == TOO_FAR)
         {
-            cout<<"too far away frames, error discarded"<<endl;
+            cout<<RED"too far away frames, error discarded"<<endl;
         }
         else
         {
-            cout<<"too less inliers, error discarded"<<endl;
+            cout<<RED"too less inliers, error discarded"<<endl;
         }
     }
 
-    cout<<"start graph optimization, total vertices:"<<optimizer.vertices().size()<<endl;
+    cout<<"graph optimization, total vertices:"<<optimizer.vertices().size()<<endl;
     optimizer.save("./data/result_before_optimization.g2o");
     optimizer.initializeOptimization();
     optimizer.optimize( 50 );

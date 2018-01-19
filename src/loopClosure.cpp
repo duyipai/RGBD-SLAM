@@ -49,7 +49,7 @@ FRAME_CHECK_RESULT checkKeyFrame( FRAME & f1, FRAME & f2, g2o::SparseOptimizer &
         informationMatrix(i, i) = 100;
     }
     edge->setInformation(informationMatrix);
-    edge->setMeasurement(cvMat2Eigen(result.rvec, result.tvec));
+    edge->setMeasurement(cvMat2Eigen(result.rvec, result.tvec).inverse());
 
     optimizer.addEdge(edge);
     return KEY_FRAME;
@@ -73,20 +73,21 @@ void checkRandomLoop(vector<FRAME> & frames, FRAME & currFrame, g2o::SparseOptim
 {
     static ParameterReader reader;
     static int checkNum = atoi(reader.getData("random_loops").c_str());
+    static int nearCheckNum = atoi(reader.getData("nearby_loops").c_str());
     srand((unsigned int)time(NULL));
 
-    if( frames.size()<= checkNum)
+    if( int(frames.size())-nearCheckNum<= checkNum)
     {
-        for(vector<FRAME>::reverse_iterator it = frames.rbegin(); it!= frames.rend(); ++it)
+        for(int i=0; i<int(frames.size())-nearCheckNum; ++i)
         {
-            checkKeyFrame(*it, currFrame, optimizer, true);
+            checkKeyFrame(frames[i], currFrame, optimizer, true);
         }
     }
     else
     {
         for(int i=0; i<checkNum; ++i)
         {
-            int t = rand()%frames.size();
+            int t = rand()%(frames.size()-nearCheckNum);
             checkKeyFrame(frames[t], currFrame, optimizer, true);
         }
     }

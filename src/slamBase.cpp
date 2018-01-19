@@ -44,6 +44,7 @@ void computeKeyPointsAndDesp( FRAME& frame, string detector_name, string descrip
 {
     cv::Ptr<cv::FeatureDetector>  detector;
     cv::Ptr<cv::DescriptorExtractor> descriptor;
+
     detector = cv::FeatureDetector::create( detector_name.c_str() );
     descriptor = cv::DescriptorExtractor::create( descriptor_name.c_str() );
     if(!detector||!descriptor)
