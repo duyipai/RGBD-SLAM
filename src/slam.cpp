@@ -30,14 +30,14 @@ int main( int argc, char** argv )
     int endId    =   atoi( parameters.getData( "end_index"   ).c_str() );
 
     // initialize
-    cout<<"Start initializing ..."<<endl;
+    cout<<"Initialize"<<endl;
     int currId = startId;
     vector<FRAME> keyFrames;
     FRAME lastFrame = readFrame( currId, parameters ); 
     // last and current comparison
 
-    string detector = parameters.getData( "detector" );
-    string descriptor = parameters.getData( "descriptor" );
+    string detector = "ORB";
+    string descriptor = "ORB";
     CAMERA_INTRINSIC_PARAMETERS intrinPara = getDefaultCamera();
     computeKeyPointsAndDesp( lastFrame, detector, descriptor );
 
@@ -58,7 +58,7 @@ int main( int argc, char** argv )
 
     g2o::VertexSE3* vertex = new g2o::VertexSE3();
     vertex->setId( currId );
-    vertex->setEstimate( Eigen::Isometry3d::Identity());// first estimate is identity matrix
+    vertex->setEstimate( Eigen::Isometry3d::Identity());// initial value of the estimate is identity matrix
     vertex->setFixed( true); // initial position is fixed
     optimizer.addVertex (vertex);
 
@@ -97,13 +97,13 @@ int main( int argc, char** argv )
         }
     }
 
-    cout<<"graph optimization, total vertices:"<<optimizer.vertices().size()<<endl;
+    cout<<"total vertices:"<<optimizer.vertices().size()<<endl;
     optimizer.save("./data/result_before_optimization.g2o");
     optimizer.initializeOptimization();
     optimizer.optimize( 50 );
     optimizer.save("./data/final_result.g2o");
 
-    cout<<"saving the point cloud map..."<<endl;
+    cout<<"saving the point cloud..."<<endl;
     PointCloud::Ptr output ( new PointCloud() ); 
     PointCloud::Ptr tmp ( new PointCloud() );
 

@@ -50,7 +50,7 @@ FRAME_CHECK_RESULT checkKeyFrame( FRAME & f1, FRAME & f2, g2o::SparseOptimizer &
     }
     edge->setInformation(informationMatrix);
     edge->setMeasurement(cvMat2Eigen(result.rvec, result.tvec).inverse());
-
+    
     optimizer.addEdge(edge);
     return KEY_FRAME;
 }
